@@ -118,6 +118,8 @@ export default function ProfilePage() {
             });
             const data = await res.json();
             if (data.success) {
+                // Save name to localStorage for sidebar display
+                localStorage.setItem('freelancer_name', formData.name);
                 alert('Profile updated successfully!');
                 fetchProfile();
             } else {

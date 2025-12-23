@@ -36,12 +36,17 @@ export default function DashboardLayout({
     const pathname = usePathname();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [profilePhoto, setProfilePhoto] = useState<string>('');
+    const [profileName, setProfileName] = useState<string>('Freelancer');
 
     useEffect(() => {
-        // Load saved photo
+        // Load saved photo and name
         const savedPhoto = localStorage.getItem('freelancer_photo');
+        const savedName = localStorage.getItem('freelancer_name');
         if (savedPhoto) {
             setProfilePhoto(savedPhoto);
+        }
+        if (savedName) {
+            setProfileName(savedName);
         }
     }, []);
 
@@ -113,7 +118,7 @@ export default function DashboardLayout({
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">Freelancer</p>
+                                <p className="text-sm font-medium truncate">{profileName}</p>
                                 <p className="text-xs text-slate-500 truncate">View Profile</p>
                             </div>
                             <Settings className="h-4 w-4 text-slate-400" />
