@@ -44,7 +44,7 @@ export async function GET() {
             }
         });
 
-        const avgDays = count > 0 ? Math.round(totalDays / count) : 14;
+        const avgDays = count > 0 ? Math.round(totalDays / count) : 0;
 
         return NextResponse.json({
             success: true,
@@ -54,7 +54,7 @@ export async function GET() {
         console.error('Completion time query failed:', error);
         return NextResponse.json({
             success: true,
-            data: { avg_days: 14 }
+            data: { avg_days: 0 }
         });
     }
 }
