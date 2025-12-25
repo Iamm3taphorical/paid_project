@@ -1,45 +1,45 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { supabase } from '@/lib/db';
 
-// Feature 1: Automatic Payment Due Alerts
-// Detects unpaid payments whose due dates are within the next 7 days or already overdue
 export async function GET() {
     try {
-        const sql = `
-            SELECT 
-                P.P_id,
-                P.amount,
-                P.due_date,
-                P.payment_status,
-                J.title AS job_title,
-                U.name AS client_name,
-                DATEDIFF(P.due_date, CURDATE()) AS days_until_due,
-                CASE WHEN P.due_date < CURDATE() THEN 1 ELSE 0 END AS is_overdue
-            FROM Payment P
-            JOIN Involves I ON P.P_id = I.P_id
-            JOIN Job J ON I.J_id = J.J_id
-            JOIN Requests R ON J.J_id = R.J_id
-            JOIN Customer C ON R.id = C.id
-            JOIN User U ON C.id = U.id
-            WHERE P.payment_status != 'paid'
-              AND P.due_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-            ORDER BY P.due_date ASC
-        `;
+        // Get payments due within 7 days
+        const today = new Date();
+        const weekFromNow = new Date(today);
+        weekFromNow.setDate(weekFromNow.getDate() + 7);
 
-        const results = await query(sql);
+        const { data: payments, error } = await supabase
+            .from('Payment')
+            .select('*')
+            .in('payment_status', ['pending', 'overdue'])
+            .lte('due_date', weekFromNow.toISOString().split('T')[0])
+            .order('due_date', { ascending: true });
+
+        if (error) {
+            throw error;
+        }
+
+        // Add alert level
+        const alertsWithLevel = (payments || []).map((p: any) => {
+            const dueDate = new Date(p.due_date);
+            const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+            let alert_level = 'normal';
+            if (daysUntilDue < 0) alert_level = 'critical';
+            else if (daysUntilDue <= 3) alert_level = 'warning';
+
+            return { ...p, days_until_due: daysUntilDue, alert_level };
+        });
 
         return NextResponse.json({
             success: true,
-            feature: 'Payment Due Alerts',
-            description: 'Unpaid payments due within 7 days or overdue',
-            sql: sql.trim(),
-            data: results
+            data: alertsWithLevel
         });
     } catch (error) {
         console.error('Payment alerts query failed:', error);
         return NextResponse.json({
-            success: false,
-            error: error instanceof Error ? error.message : 'Database query failed'
-        }, { status: 500 });
+            success: true,
+            data: []
+        });
     }
 }

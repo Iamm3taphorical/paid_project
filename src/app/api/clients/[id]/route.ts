@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { supabase } from '@/lib/db';
 
 // Get single client
 export async function GET(
@@ -7,33 +7,39 @@ export async function GET(
     { params }: { params: { id: string } }
 ) {
     try {
-        const clientId = params.id;
+        const clientId = parseInt(params.id);
 
-        const sql = `
-            SELECT 
-                C.id,
-                U.email,
-                U.name,
-                U.created_at,
-                C.address,
-                C.phone
-            FROM Customer C
-            JOIN User U ON C.id = U.id
-            WHERE C.id = ?
-        `;
+        // Get user info
+        const { data: user, error: userError } = await supabase
+            .from('User')
+            .select('id, email, name, created_at')
+            .eq('id', clientId)
+            .single();
 
-        const results = await query(sql, [clientId]);
-
-        if ((results as any[]).length === 0) {
+        if (userError || !user) {
             return NextResponse.json({
                 success: false,
                 error: 'Client not found'
             }, { status: 404 });
         }
 
+        // Get customer details
+        const { data: customer } = await supabase
+            .from('Customer')
+            .select('address, phone')
+            .eq('id', clientId)
+            .single();
+
         return NextResponse.json({
             success: true,
-            data: results[0]
+            data: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                created_at: user.created_at,
+                address: customer?.address || '',
+                phone: customer?.phone || ''
+            }
         });
     } catch (error) {
         return NextResponse.json({
@@ -49,53 +55,39 @@ export async function PUT(
     { params }: { params: { id: string } }
 ) {
     try {
-        const clientId = params.id;
+        const clientId = parseInt(params.id);
         const body = await request.json();
         const { name, email, phone, address } = body;
 
         // Update User record
         if (name || email) {
-            const userUpdates: string[] = [];
-            const userValues: any[] = [];
+            const updateData: Record<string, any> = {};
+            if (name) updateData.name = name;
+            if (email) updateData.email = email;
 
-            if (name) {
-                userUpdates.push('name = ?');
-                userValues.push(name);
-            }
-            if (email) {
-                userUpdates.push('email = ?');
-                userValues.push(email);
-            }
+            const { error: userError } = await supabase
+                .from('User')
+                .update(updateData)
+                .eq('id', clientId);
 
-            if (userUpdates.length > 0) {
-                userValues.push(clientId);
-                await query(
-                    `UPDATE User SET ${userUpdates.join(', ')} WHERE id = ?`,
-                    userValues
-                );
+            if (userError) {
+                throw userError;
             }
         }
 
         // Update Customer record
         if (phone !== undefined || address !== undefined) {
-            const custUpdates: string[] = [];
-            const custValues: any[] = [];
+            const updateData: Record<string, any> = {};
+            if (phone !== undefined) updateData.phone = phone;
+            if (address !== undefined) updateData.address = address;
 
-            if (phone !== undefined) {
-                custUpdates.push('phone = ?');
-                custValues.push(phone);
-            }
-            if (address !== undefined) {
-                custUpdates.push('address = ?');
-                custValues.push(address);
-            }
+            const { error: customerError } = await supabase
+                .from('Customer')
+                .update(updateData)
+                .eq('id', clientId);
 
-            if (custUpdates.length > 0) {
-                custValues.push(clientId);
-                await query(
-                    `UPDATE Customer SET ${custUpdates.join(', ')} WHERE id = ?`,
-                    custValues
-                );
+            if (customerError) {
+                throw customerError;
             }
         }
 
@@ -117,11 +109,16 @@ export async function DELETE(
     { params }: { params: { id: string } }
 ) {
     try {
-        const clientId = params.id;
+        const clientId = parseInt(params.id);
 
         // Check if client exists
-        const existing = await query('SELECT id FROM Customer WHERE id = ?', [clientId]);
-        if ((existing as any[]).length === 0) {
+        const { data: existing } = await supabase
+            .from('Customer')
+            .select('id')
+            .eq('id', clientId)
+            .single();
+
+        if (!existing) {
             return NextResponse.json({
                 success: false,
                 error: 'Client not found'
@@ -129,7 +126,14 @@ export async function DELETE(
         }
 
         // Delete User record (cascades to Customer via FK)
-        await query('DELETE FROM User WHERE id = ?', [clientId]);
+        const { error } = await supabase
+            .from('User')
+            .delete()
+            .eq('id', clientId);
+
+        if (error) {
+            throw error;
+        }
 
         return NextResponse.json({
             success: true,

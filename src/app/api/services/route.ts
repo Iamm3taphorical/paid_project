@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { supabase } from '@/lib/db';
 
-// Get all services (for dropdowns in forms)
 export async function GET() {
     try {
-        const sql = `SELECT S_id, name, description FROM Service ORDER BY name ASC`;
-        const results = await query(sql);
+        const { data: services, error } = await supabase
+            .from('Service')
+            .select('S_id, name, description')
+            .order('name', { ascending: true });
+
+        if (error) {
+            throw error;
+        }
 
         return NextResponse.json({
             success: true,
-            data: results
+            data: services || []
         });
     } catch (error) {
         console.error('Services query failed:', error);

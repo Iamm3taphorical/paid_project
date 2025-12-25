@@ -1,29 +1,21 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { supabase } from '@/lib/db';
 
-// Get all payments with associated job and client info
+// Get all payments
 export async function GET() {
     try {
-        const sql = `
-            SELECT 
-                P.*,
-                J.title AS job_title,
-                J.J_id,
-                U.name AS client_name
-            FROM Payment P
-            LEFT JOIN Involves I ON P.P_id = I.P_id
-            LEFT JOIN Job J ON I.J_id = J.J_id
-            LEFT JOIN Requests R ON J.J_id = R.J_id
-            LEFT JOIN Customer C ON R.id = C.id
-            LEFT JOIN User U ON C.id = U.id
-            ORDER BY P.created_at DESC
-        `;
+        const { data: payments, error } = await supabase
+            .from('Payment')
+            .select('*')
+            .order('created_at', { ascending: false });
 
-        const results = await query(sql);
+        if (error) {
+            throw error;
+        }
 
         return NextResponse.json({
             success: true,
-            data: results
+            data: payments || []
         });
     } catch (error) {
         console.error('Payments query failed:', error);

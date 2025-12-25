@@ -1,54 +1,41 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { supabase } from '@/lib/db';
 
 // Get current user profile (or create default if none exists)
 export async function GET() {
     try {
         // Try to get service provider profile
-        const sql = `
-            SELECT 
-                U.id,
-                U.email,
-                U.name,
-                U.user_type,
-                U.created_at,
-                SP.specialization,
-                SP.hourly_rate
-            FROM User U
-            LEFT JOIN ServiceProvider SP ON U.id = SP.id
-            WHERE U.user_type = 'service_provider'
-            LIMIT 1
-        `;
+        const { data: providers, error } = await supabase
+            .from('User')
+            .select(`
+                id,
+                email,
+                name,
+                user_type,
+                created_at
+            `)
+            .eq('user_type', 'service_provider')
+            .limit(1);
 
-        const results = await query(sql);
+        if (error) {
+            throw error;
+        }
 
-        if ((results as any[]).length === 0) {
+        if (!providers || providers.length === 0) {
             // No service provider exists, create one
-            try {
-                const userResult = await query(
-                    `INSERT INTO User (email, user_type, name, password) VALUES (?, 'service_provider', ?, ?)`,
-                    ['freelancer@demo.com', 'Demo Freelancer', 'password123']
-                );
-                const userId = (userResult as any).insertId;
+            const { data: newUser, error: createError } = await supabase
+                .from('User')
+                .insert({
+                    email: 'freelancer@demo.com',
+                    user_type: 'service_provider',
+                    name: 'Demo Freelancer',
+                    password: 'password123'
+                })
+                .select('id')
+                .single();
 
-                await query(
-                    `INSERT INTO ServiceProvider (id, specialization, hourly_rate) VALUES (?, ?, ?)`,
-                    [userId, 'Full Stack Development', 75.00]
-                );
-
-                return NextResponse.json({
-                    success: true,
-                    data: {
-                        id: userId,
-                        email: 'freelancer@demo.com',
-                        name: 'Demo Freelancer',
-                        user_type: 'service_provider',
-                        specialization: 'Full Stack Development',
-                        hourly_rate: 75
-                    }
-                });
-            } catch (createError) {
-                // If creation fails, return mock data
+            if (createError) {
+                // Return mock profile on error
                 return NextResponse.json({
                     success: true,
                     data: {
@@ -61,11 +48,43 @@ export async function GET() {
                     }
                 });
             }
+
+            // Create ServiceProvider record
+            await supabase
+                .from('ServiceProvider')
+                .insert({
+                    id: newUser.id,
+                    specialization: 'Full Stack Development',
+                    hourly_rate: 75.00
+                });
+
+            return NextResponse.json({
+                success: true,
+                data: {
+                    id: newUser.id,
+                    email: 'freelancer@demo.com',
+                    name: 'Demo Freelancer',
+                    user_type: 'service_provider',
+                    specialization: 'Full Stack Development',
+                    hourly_rate: 75
+                }
+            });
         }
+
+        // Get ServiceProvider details
+        const { data: spData } = await supabase
+            .from('ServiceProvider')
+            .select('specialization, hourly_rate')
+            .eq('id', providers[0].id)
+            .single();
 
         return NextResponse.json({
             success: true,
-            data: results[0]
+            data: {
+                ...providers[0],
+                specialization: spData?.specialization || 'Full Stack Development',
+                hourly_rate: spData?.hourly_rate || 75
+            }
         });
     } catch (error) {
         console.error('Profile fetch failed:', error);
@@ -91,24 +110,40 @@ export async function PUT(request: Request) {
         const { name, email, specialization, hourly_rate, password } = body;
 
         // Try to find existing service provider
-        let existingProvider = await query(
-            `SELECT U.id FROM User U JOIN ServiceProvider SP ON U.id = SP.id WHERE U.user_type = 'service_provider' LIMIT 1`
-        );
+        const { data: providers } = await supabase
+            .from('User')
+            .select('id')
+            .eq('user_type', 'service_provider')
+            .limit(1);
 
         let providerId: number;
 
-        if ((existingProvider as any[]).length === 0) {
+        if (!providers || providers.length === 0) {
             // No provider exists, create one first
-            const userResult = await query(
-                `INSERT INTO User (email, user_type, name, password) VALUES (?, 'service_provider', ?, ?)`,
-                [email || 'freelancer@demo.com', name || 'Demo Freelancer', password || 'password123']
-            );
-            providerId = (userResult as any).insertId;
+            const { data: newUser, error: createError } = await supabase
+                .from('User')
+                .insert({
+                    email: email || 'freelancer@demo.com',
+                    user_type: 'service_provider',
+                    name: name || 'Demo Freelancer',
+                    password: password || 'password123'
+                })
+                .select('id')
+                .single();
 
-            await query(
-                `INSERT INTO ServiceProvider (id, specialization, hourly_rate) VALUES (?, ?, ?)`,
-                [providerId, specialization || 'Full Stack Development', hourly_rate || 75.00]
-            );
+            if (createError) {
+                throw createError;
+            }
+
+            providerId = newUser.id;
+
+            await supabase
+                .from('ServiceProvider')
+                .insert({
+                    id: providerId,
+                    specialization: specialization || 'Full Stack Development',
+                    hourly_rate: hourly_rate || 75.00
+                });
 
             return NextResponse.json({
                 success: true,
@@ -116,52 +151,41 @@ export async function PUT(request: Request) {
             });
         }
 
-        providerId = (existingProvider as any[])[0].id;
+        providerId = providers[0].id;
 
         // Update User record
-        const userUpdates: string[] = [];
-        const userValues: any[] = [];
+        const userUpdates: Record<string, any> = {};
+        if (name) userUpdates.name = name;
+        if (email) userUpdates.email = email;
+        if (password) userUpdates.password = password;
 
-        if (name) {
-            userUpdates.push('name = ?');
-            userValues.push(name);
-        }
-        if (email) {
-            userUpdates.push('email = ?');
-            userValues.push(email);
-        }
-        if (password) {
-            userUpdates.push('password = ?');
-            userValues.push(password);
-        }
+        if (Object.keys(userUpdates).length > 0) {
+            const { error: userError } = await supabase
+                .from('User')
+                .update(userUpdates)
+                .eq('id', providerId);
 
-        if (userUpdates.length > 0) {
-            userValues.push(providerId);
-            await query(
-                `UPDATE User SET ${userUpdates.join(', ')} WHERE id = ?`,
-                userValues
-            );
+            if (userError) {
+                throw userError;
+            }
         }
 
         // Update ServiceProvider record
-        const spUpdates: string[] = [];
-        const spValues: any[] = [];
-
-        if (specialization) {
-            spUpdates.push('specialization = ?');
-            spValues.push(specialization);
-        }
+        const spUpdates: Record<string, any> = {};
+        if (specialization) spUpdates.specialization = specialization;
         if (hourly_rate !== undefined && hourly_rate !== null && hourly_rate !== '') {
-            spUpdates.push('hourly_rate = ?');
-            spValues.push(parseFloat(hourly_rate));
+            spUpdates.hourly_rate = parseFloat(hourly_rate);
         }
 
-        if (spUpdates.length > 0) {
-            spValues.push(providerId);
-            await query(
-                `UPDATE ServiceProvider SET ${spUpdates.join(', ')} WHERE id = ?`,
-                spValues
-            );
+        if (Object.keys(spUpdates).length > 0) {
+            const { error: spError } = await supabase
+                .from('ServiceProvider')
+                .update(spUpdates)
+                .eq('id', providerId);
+
+            if (spError) {
+                throw spError;
+            }
         }
 
         return NextResponse.json({

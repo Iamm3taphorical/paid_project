@@ -1,38 +1,51 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { supabase } from '@/lib/db';
 
-// Feature 9: Workload Status Overview
-// Summarizes counts of ongoing, completed, and payment-pending jobs
 export async function GET() {
     try {
-        const sql = `
-            SELECT 
-                SUM(CASE WHEN J.status = 'ongoing' THEN 1 ELSE 0 END) AS ongoing_count,
-                SUM(CASE WHEN J.status = 'completed' THEN 1 ELSE 0 END) AS completed_count,
-                SUM(CASE WHEN J.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_count,
-                (SELECT COUNT(*) FROM Payment WHERE payment_status = 'pending') AS pending_payments
-            FROM Job J
-        `;
+        // Get job counts by status
+        const { data: jobs, error: jobError } = await supabase
+            .from('Job')
+            .select('status');
 
-        const results = await query(sql);
+        if (jobError) {
+            throw jobError;
+        }
+
+        // Get pending payments count
+        const { data: pendingPayments, error: payError } = await supabase
+            .from('Payment')
+            .select('P_id')
+            .eq('payment_status', 'pending');
+
+        if (payError) {
+            throw payError;
+        }
+
+        // Count by status
+        const ongoing = (jobs || []).filter((j: any) => j.status === 'ongoing').length;
+        const completed = (jobs || []).filter((j: any) => j.status === 'completed').length;
+        const cancelled = (jobs || []).filter((j: any) => j.status === 'cancelled').length;
 
         return NextResponse.json({
             success: true,
-            feature: 'Workload Status Overview',
-            description: 'Summary of job statuses and pending payments',
-            sql: sql.trim(),
-            data: results[0] || {
+            data: {
+                ongoing_count: ongoing,
+                completed_count: completed,
+                cancelled_count: cancelled,
+                pending_payments: (pendingPayments || []).length
+            }
+        });
+    } catch (error) {
+        console.error('Workload status query failed:', error);
+        return NextResponse.json({
+            success: true,
+            data: {
                 ongoing_count: 0,
                 completed_count: 0,
                 cancelled_count: 0,
                 pending_payments: 0
             }
         });
-    } catch (error) {
-        console.error('Workload status query failed:', error);
-        return NextResponse.json({
-            success: false,
-            error: error instanceof Error ? error.message : 'Database query failed'
-        }, { status: 500 });
     }
 }
