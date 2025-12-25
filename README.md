@@ -15,6 +15,20 @@ The system allows users to track their workload, monitor financial health, and a
 *   **Icons:** Lucide React
 *   **Authentication & Data:** Custom API routes interacting with Supabase
 
+## 9 Unique Analytics Features
+
+This distinct set of advanced analytics sets this project apart, providing actionable business intelligence directly from the SQL database.
+
+1.  **Payment Due Alerts**: Automatically identifies and flags payments that are overdue or due within the next 7 days, helping freelancers prioritize debt collection.
+2.  **Monthly & Yearly Income Tracking**: Aggregates all completed payment records to visualize financial growth trends over time.
+3.  **Client Reliability Score**: A calculated 0-100% score for every client based on their historical payment behavior (on-time vs. late), allowing freelancers to identify risky clients.
+4.  **Average Project Completion Time**: Measures the efficiency of the workflow by calculating the average days taken from a job's start date to its final payment.
+5.  **Service Demand Analytics**: Analyzes job data to determine which specific services (e.g., Web Development, SEO) are most frequently requested.
+6.  **Revenue by Service**: Breaks down total income by service category to highlight the most profitable areas of the business.
+7.  **High-Value Project Detection**: Automatically flags projects that are valued significantly higher than the average job value, ensuring these critical accounts get extra attention.
+8.  **Review Sentiment Analysis**: Uses SQL pattern matching to analyze client review text and categorize feedback as positive, negative, or neutral.
+9.  **Workload Status Overview**: Provides a real-time snapshot of the current pipeline, distinguishing between ongoing work, completed jobs, and pending invoices.
+
 ---
 
 ## Codebase Structure & Functionality
