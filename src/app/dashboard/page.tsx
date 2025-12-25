@@ -42,16 +42,28 @@ import Link from "next/link";
 
 export default function DashboardPage() {
     // State for API data
-    const [stats, setStats] = useState<DashboardStats>(getDashboardStats());
-    const [alerts, setAlerts] = useState<PaymentAlert[]>(getPaymentAlerts());
-    const [monthlyIncome, setMonthlyIncome] = useState<MonthlyIncome[]>(getMonthlyIncome());
-    const [topClients, setTopClients] = useState<TopClient[]>(getTopClients());
-    const [workload, setWorkload] = useState<WorkloadStatus>(getWorkloadStatus());
-    const [serviceDemand, setServiceDemand] = useState<ServiceDemand[]>(getServiceDemand());
-    const [sentiments, setSentiments] = useState<ReviewSentiment[]>(getReviewSentiments());
-    const [recentJobs, setRecentJobs] = useState<Job[]>(mockJobs.slice(0, 5));
+    // State for API data
+    const [stats, setStats] = useState<DashboardStats>({
+        total_jobs: 0,
+        total_revenue: 0,
+        pending_amount: 0,
+        avg_completion_time: 0,
+        total_clients: 0,
+        avg_job_value: 0
+    });
+    const [alerts, setAlerts] = useState<PaymentAlert[]>([]);
+    const [monthlyIncome, setMonthlyIncome] = useState<MonthlyIncome[]>([]);
+    const [topClients, setTopClients] = useState<TopClient[]>([]);
+    const [workload, setWorkload] = useState<WorkloadStatus>({
+        ongoing_count: 0,
+        completed_count: 0,
+        pending_payments: 0
+    });
+    const [serviceDemand, setServiceDemand] = useState<ServiceDemand[]>([]);
+    const [sentiments, setSentiments] = useState<ReviewSentiment[]>([]);
+    const [recentJobs, setRecentJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState(true);
-    const [dataSource, setDataSource] = useState<'api' | 'mock'>('mock');
+    const [dataSource, setDataSource] = useState<'api' | 'mock'>('api');
 
     // Fetch data from API endpoints
     useEffect(() => {
