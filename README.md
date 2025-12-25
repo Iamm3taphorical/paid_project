@@ -1,131 +1,119 @@
 # Freelance Pro - Project Management System
 
-A production-grade freelance project management system built with Next.js 14, TypeScript, Tailwind CSS, and shadcn UI. This project follows a strict ER database schema for CSE370.
+## Project Overview
 
-## 🚀 Features
+Freelance Pro is a comprehensive project management dashboard designed for freelancers to manage their clients, jobs, payments, and business analytics. It is built as a modern web application using Next.js and connects to a Supabase (PostgreSQL) database for real-time data persistence.
 
-### Core Features
-- **Job Management** - Track projects, filter by status, manage deadlines
-- **Payment Tracking** - Monitor payment status, due dates, and history
-- **Client Management** - Customer directory with contact information
-- **Service Provider** - Track freelancer specializations and rates
+The system allows users to track their workload, monitor financial health, and analyze client reliability through a suite of advanced analytics features.
 
-### 9 Advanced Analytics Features
+## Technology Stack
 
-| # | Feature | Description |
-|---|---------|-------------|
-| 1 | **Payment Due Alerts** | Detects unpaid payments due within 7 days or overdue |
-| 2 | **Monthly/Yearly Income** | Aggregates paid payments by month |
-| 3 | **Client Reliability Score** | Calculates on-time payment percentage |
-| 4 | **Avg Completion Time** | Measures days between job start and payment |
-| 5 | **Service Demand** | Counts service frequency from Requires table |
-| 6 | **Revenue by Service** | Sums revenue grouped by service type |
-| 7 | **High-Value Detection** | Identifies jobs above average value |
-| 8 | **Review Sentiment** | Keyword-based positive/neutral/negative classification |
-| 9 | **Workload Status** | Counts ongoing, completed, and pending jobs |
+*   **Framework:** Next.js 14 (App Router)
+*   **Language:** TypeScript
+*   **Styling:** Tailwind CSS
+*   **Database:** Supabase (PostgreSQL)
+*   **Icons:** Lucide React
+*   **Authentication & Data:** Custom API routes interacting with Supabase
 
-### UI Components
-- **NeonOrbs** - Animated background orbs for landing page
-- **TubesCursor** - WebGL cursor effect for hero sections
-- **shadcn UI** - Card, Button, Badge components
+---
 
-## 🗃️ Database Schema
+## Codebase Structure & Functionality
 
-The system follows a strict ER diagram with:
+This section explains the purpose and functionality of each major part of the codebase.
 
-**Entities:**
-- `User` (id, email, user_type, name, password)
-- `Customer` (id, address, phone) - specialization of User
-- `ServiceProvider` (id, specialization, hourly_rate) - specialization of User
-- `Job` (J_id, title, description, datetime, status, total_amount)
-- `JobLocation` (J_id, location) - multi-valued attribute
-- `Service` (S_id, name, description)
-- `Payment` (P_id, due_date, method, payment_status, amount, payment_date)
-- `Review` (R_id, date, comment)
+### 1. Database Connection (`src/lib/db.ts`)
 
-**Relationships:**
-- `Requests` (Customer → Job)
-- `Requires` (Job → Service)
-- `Offers` (ServiceProvider → Service)
-- `Involves` (Job → Payment)
-- `Gives` (Customer → Review)
-- `ReviewForJob` (Review → Job)
+This file is the backbone of the application's data layer. It initializes the connection to Supabase using the project URL and Anonymous Key stored in environment variables.
 
-## 🛠️ Tech Stack
+*   **supabase**: An exported client instance used throughout the application to fetch, insert, update, and delete data from the PostgreSQL database.
+*   **testConnection**: A utility function that runs a simple query to verify if the application can successfully communicate with the database.
 
-- **Framework:** Next.js 14 (App Router)
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS
-- **UI Components:** shadcn/ui
-- **Charts:** Recharts
-- **Icons:** Lucide React
-- **Database:** MySQL (schema provided)
+### 2. Backend API Routes (`src/app/api/...`)
 
-## 📦 Installation
+The application uses Next.js API Routes to handle server-side logic and database interactions. These routes return JSON responses to the frontend.
 
-```bash
-# Clone or navigate to the project
-cd paid_project
+#### Analytics Endpoints
+These endpoints power the charts and metrics on the Dashboard and Analytics pages.
 
-# Install dependencies
-npm install
+*   `api/analytics/payment-alerts`: identifying payments that are overdue or due within the next 7 days.
+*   `api/analytics/monthly-income`: Aggregates all "paid" payments by month and year to show financial growth over time.
+*   `api/analytics/client-reliability`: Calculates a reliability score (0-100%) for each client based on their history of on-time versus overdue payments.
+*   `api/analytics/completion-time`: Measures the average number of days between a job's start date and its final payment date to estimate project turnaround time.
+*   `api/analytics/service-demand`: Counts how many jobs require specific services (e.g., Web Development vs. UI Design) to identify market trends.
+*   `api/analytics/service-revenue`: Sums up the total income generated by each service category.
+*   `api/analytics/high-value-projects`: Identifies projects with a total value significantly higher than the average project value.
+*   `api/analytics/review-sentiment`: Analyzes client review text for positive or negative keywords to gauge customer satisfaction.
+*   `api/analytics/workload-status`: Provides a summary count of ongoing projects, completed projects, and pending invoices.
 
-# Run development server
-npm run dev
+#### Core Management Endpoints
+These endpoints handle the CRUD (Create, Read, Update, Delete) operations for the main entities.
 
-# Build for production
-npm run build
-```
+*   `api/clients`: Fetches the list of clients or adds a new client. Supports updating and deleting specific clients via ID parameters.
+*   `api/jobs`: Manages project listings. It links jobs to specific clients and services. It also handles status updates (e.g., marking a job as "Completed").
+*   `api/payments`: Tracks invoices. It allows creating new payment records and updating their status (e.g., from "Pending" to "Paid").
+*   `api/profile`: Manages the freelancer's personal information, hourly rate, and security settings. It includes logic to auto-create a default profile if one does not exist.
 
-## 🗄️ Database Setup
+### 3. Frontend Application (`src/app/dashboard/...`)
 
-```bash
-# Create database
-mysql -u root -p -e "CREATE DATABASE paid_project"
+The frontend is built with React components and uses a responsive layout with a sidebar for navigation.
 
-# Import schema
-mysql -u root -p paid_project < sql/schema.sql
-```
+#### Dashboard (`dashboard/page.tsx`)
+The landing page after login. It provides a high-level overview of the business.
+*   **State Management**: Uses React `useState` and `useEffect` to fetch data from multiple API endpoints in parallel.
+*   **Empty State Handling**: If the database is new/empty, it gracefully shows zeros instead of broken charts.
+*   **Key Metrics**: Displays Total Revenue, Pending Payments, and Active Jobs at a glance.
 
-## 📁 Project Structure
+#### Analytics (`dashboard/analytics/page.tsx`)
+A dedicated page for deep dives into business performance.
+*   **Feature Toggles**: Includes a settings panel that allows users to show or hide specific metrics based on what matters to them.
+*   **Live Data**: All charts reflect real-time data from the SQL database.
 
-```
-src/
-├── app/
-│   ├── layout.tsx          # Root layout (dark mode)
-│   ├── page.tsx            # Landing page with NeonOrbs
-│   └── dashboard/
-│       ├── layout.tsx      # Dashboard sidebar
-│       ├── page.tsx        # Main dashboard
-│       ├── jobs/           # Feature 7: High-value detection
-│       ├── payments/       # Feature 1: Payment alerts
-│       ├── clients/        # Feature 3: Reliability scores
-│       └── analytics/      # All 9 features with SQL
-├── components/
-│   └── ui/
-│       ├── neon-orbs.tsx   # Animated background
-│       ├── tube-cursor.tsx # WebGL cursor
-│       ├── card.tsx        # shadcn Card
-│       ├── button.tsx      # shadcn Button
-│       └── badge.tsx       # shadcn Badge
-├── lib/
-│   ├── data.ts             # Mock data + analytics functions
-│   └── utils.ts            # Utility functions
-├── types/
-│   └── index.ts            # TypeScript definitions
-└── sql/
-    └── schema.sql          # MySQL database schema
-```
+#### Clients (`dashboard/clients/page.tsx`)
+A directory of all customers.
+*   **Reliability Badges**: Visual indicators (Green/Yellow/Red) derived from the Client Reliability API to warn about potential late payers.
+*   **Modal Forms**: Uses a popup modal for adding or editing client details without leaving the page.
 
-## 🎓 CSE370 Project
+#### Jobs (`dashboard/jobs/page.tsx`)
+The project management center.
+*   **Filtering**: Allows filtering the list by status (Ongoing, Completed, Cancelled).
+*   **High-Value Highlighting**: Automatically flags jobs that are worth more than the average, helping freelancers prioritize big clients.
 
-This project demonstrates:
-- Normalized database design (3NF)
-- Proper use of relationship tables for many-to-many relationships
-- SQL queries with JOINs, subqueries, CASE expressions, and aggregation
-- React frontend with TypeScript for type safety
-- Modern UI/UX with Tailwind CSS and shadcn
+#### Payments (`dashboard/payments/page.tsx`)
+The financial tracker.
+*   **Status Tracking**: Shows which invoices are Paid vs Pending.
+*   **Alerts**: Prominently displays overdue bills at the top of the page.
+*   **Actions**: Provides a one-click button to mark a pending invoice as "Paid".
 
-## 📝 License
+#### Profile (`dashboard/profile/page.tsx`)
+Settings for the user account.
+*   **Data Persistence**: Saves display preferences (like the user's name in the sidebar) to LocalStorage for immediate UI updates, while also syncing critical data to the database.
 
-Academic project for CSE370 Database Systems
+---
+
+## Database Schema
+
+The data is organized into several relational tables in PostgreSQL:
+
+*   **User**: Stores login credentials and basic info for both Freelancers and Customers.
+*   **ServiceProvider**: Extends the User table with specific freelancer details like Hourly Rate.
+*   **Customer**: Extends the User table with client-specific info like Address and Phone.
+*   **Job**: Represents a project with a Title, Status, and Total Amount.
+*   **Payment**: Records specific invoices linked to Jobs.
+*   **Service**: Defines the types of work offered (e.g., Web Development).
+*   **Review**: Stores client feedback and ratings.
+
+---
+
+## How to Run
+
+1.  **Install Dependencies**:
+    Run `npm install` to download the required packages.
+
+2.  **Environment Setup**:
+    Ensure the `.env.local` file contains your Supabase URL and Anon Key.
+
+3.  **Start Development Server**:
+    Run `npm run dev` to start the application on `http://localhost:3000`.
+
+4.  **Database Reset (Optional)**:
+    If you wish to clear all data and start fresh, you can run the provided SQL cleanup script in your Supabase SQL editor.
