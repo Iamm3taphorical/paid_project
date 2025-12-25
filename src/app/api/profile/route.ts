@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/db';
 
-// Get current user profile (or create default if none exists)
+export const dynamic = 'force-dynamic';
+
+// Get current user profile
 export async function GET() {
     try {
-        // Try to get service provider profile
         const { data: providers, error } = await supabase
             .from('User')
             .select(`
@@ -17,53 +18,53 @@ export async function GET() {
             .eq('user_type', 'service_provider')
             .limit(1);
 
-        if (error) {
-            throw error;
-        }
+        if (error) throw error;
 
+        // If no user found, return default mock data (or create one)
         if (!providers || providers.length === 0) {
-            // No service provider exists, create one
+            console.log('No service provider found, creating default...');
+
+            // Try to create default user
             const { data: newUser, error: createError } = await supabase
                 .from('User')
                 .insert({
-                    email: 'freelancer@demo.com',
+                    email: 'john.dev@freelance.com',
                     user_type: 'service_provider',
-                    name: 'Demo Freelancer',
+                    name: 'John Developer',
                     password: 'password123'
                 })
                 .select('id')
                 .single();
 
             if (createError) {
-                // Return mock profile on error
+                console.error('Failed to create default user:', createError);
+                // Fallback to mock data if creation fails
                 return NextResponse.json({
                     success: true,
                     data: {
                         id: 0,
-                        email: 'demo@freelancepro.com',
-                        name: 'Demo Freelancer',
+                        email: 'demo@freelance.com',
+                        name: 'Demo User',
                         user_type: 'service_provider',
-                        specialization: 'Full Stack Development',
-                        hourly_rate: 75
+                        specialization: 'Full Stack',
+                        hourly_rate: 0
                     }
                 });
             }
 
-            // Create ServiceProvider record
-            await supabase
-                .from('ServiceProvider')
-                .insert({
-                    id: newUser.id,
-                    specialization: 'Full Stack Development',
-                    hourly_rate: 75.00
-                });
+            // Create service provider details
+            await supabase.from('ServiceProvider').insert({
+                id: newUser.id,
+                specialization: 'Full Stack Development',
+                hourly_rate: 75
+            });
 
             return NextResponse.json({
                 success: true,
                 data: {
                     id: newUser.id,
-                    email: 'freelancer@demo.com',
-                    name: 'Demo Freelancer',
+                    email: 'john.dev@freelance.com',
+                    name: 'John Developer',
                     user_type: 'service_provider',
                     specialization: 'Full Stack Development',
                     hourly_rate: 75
@@ -71,120 +72,104 @@ export async function GET() {
             });
         }
 
-        // Get ServiceProvider details
-        const { data: spData } = await supabase
+        const user = providers[0];
+
+        // Get details
+        const { data: sp, error: spError } = await supabase
             .from('ServiceProvider')
             .select('specialization, hourly_rate')
-            .eq('id', providers[0].id)
+            .eq('id', user.id)
             .single();
 
         return NextResponse.json({
             success: true,
             data: {
-                ...providers[0],
-                specialization: spData?.specialization || 'Full Stack Development',
-                hourly_rate: spData?.hourly_rate || 75
+                ...user,
+                specialization: sp?.specialization || '',
+                hourly_rate: sp?.hourly_rate || 0
             }
         });
+
     } catch (error) {
-        console.error('Profile fetch failed:', error);
-        // Return mock profile on error
+        console.error('Profile GET error:', error);
         return NextResponse.json({
-            success: true,
-            data: {
-                id: 0,
-                email: 'demo@freelancepro.com',
-                name: 'Demo Freelancer',
-                user_type: 'service_provider',
-                specialization: 'Full Stack Development',
-                hourly_rate: 75
-            }
-        });
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        }, { status: 500 });
     }
 }
 
-// Update profile (or create if not exists)
+// Update profile
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
         const { name, email, specialization, hourly_rate, password } = body;
 
-        // Try to find existing service provider
-        const { data: providers } = await supabase
+        console.log('Updating profile:', { name, email, specialization });
+
+        // 1. Get current user
+        const { data: users, error: findError } = await supabase
             .from('User')
             .select('id')
             .eq('user_type', 'service_provider')
             .limit(1);
 
-        let providerId: number;
+        if (findError) throw findError;
 
-        if (!providers || providers.length === 0) {
-            // No provider exists, create one first
-            const { data: newUser, error: createError } = await supabase
-                .from('User')
-                .insert({
-                    email: email || 'freelancer@demo.com',
-                    user_type: 'service_provider',
-                    name: name || 'Demo Freelancer',
-                    password: password || 'password123'
-                })
-                .select('id')
-                .single();
-
-            if (createError) {
-                throw createError;
-            }
-
-            providerId = newUser.id;
-
-            await supabase
-                .from('ServiceProvider')
-                .insert({
-                    id: providerId,
-                    specialization: specialization || 'Full Stack Development',
-                    hourly_rate: hourly_rate || 75.00
-                });
-
+        if (!users || users.length === 0) {
             return NextResponse.json({
-                success: true,
-                message: 'Profile created and updated successfully'
-            });
+                success: false,
+                error: 'No profile found to update. Please refresh the page.'
+            }, { status: 404 });
         }
 
-        providerId = providers[0].id;
+        const userId = users[0].id;
 
-        // Update User record
-        const userUpdates: Record<string, any> = {};
+        // 2. Update User table
+        const userUpdates: any = {};
         if (name) userUpdates.name = name;
         if (email) userUpdates.email = email;
         if (password) userUpdates.password = password;
 
         if (Object.keys(userUpdates).length > 0) {
-            const { error: userError } = await supabase
+            const { error: updateError } = await supabase
                 .from('User')
                 .update(userUpdates)
-                .eq('id', providerId);
+                .eq('id', userId);
 
-            if (userError) {
-                throw userError;
+            if (updateError) {
+                console.error('User update error:', updateError);
+                throw updateError;
             }
         }
 
-        // Update ServiceProvider record
-        const spUpdates: Record<string, any> = {};
+        // 3. Update ServiceProvider table
+        const spUpdates: any = {};
         if (specialization) spUpdates.specialization = specialization;
-        if (hourly_rate !== undefined && hourly_rate !== null && hourly_rate !== '') {
-            spUpdates.hourly_rate = parseFloat(hourly_rate);
-        }
+        if (hourly_rate !== undefined) spUpdates.hourly_rate = hourly_rate;
 
         if (Object.keys(spUpdates).length > 0) {
-            const { error: spError } = await supabase
+            // Check if ServiceProvider record exists first
+            const { data: existingSp } = await supabase
                 .from('ServiceProvider')
-                .update(spUpdates)
-                .eq('id', providerId);
+                .select('id')
+                .eq('id', userId)
+                .single();
 
-            if (spError) {
-                throw spError;
+            if (existingSp) {
+                const { error: spError } = await supabase
+                    .from('ServiceProvider')
+                    .update(spUpdates)
+                    .eq('id', userId);
+
+                if (spError) throw spError;
+            } else {
+                // Insert if missing
+                const { error: spInsertError } = await supabase
+                    .from('ServiceProvider')
+                    .insert({ id: userId, ...spUpdates });
+
+                if (spInsertError) throw spInsertError;
             }
         }
 
@@ -192,11 +177,12 @@ export async function PUT(request: Request) {
             success: true,
             message: 'Profile updated successfully'
         });
+
     } catch (error) {
-        console.error('Profile update failed:', error);
+        console.error('Profile PUT error:', error);
         return NextResponse.json({
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to update profile'
+            error: error instanceof Error ? error.message : 'Database update failed'
         }, { status: 500 });
     }
 }

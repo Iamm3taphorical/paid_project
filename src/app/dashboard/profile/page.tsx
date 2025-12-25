@@ -116,17 +116,25 @@ export default function ProfilePage() {
                     hourly_rate: parseFloat(formData.hourly_rate) || 0
                 })
             });
-            const data = await res.json();
-            if (data.success) {
-                // Save name to localStorage for sidebar display
-                localStorage.setItem('freelancer_name', formData.name);
-                alert('Profile updated successfully!');
-                fetchProfile();
+
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem('freelancer_name', formData.name);
+                    alert('Profile updated successfully!');
+                    fetchProfile();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to update profile'));
+                }
             } else {
-                alert(data.error || 'Failed to update profile');
+                const text = await res.text();
+                console.error("Non-JSON response:", text);
+                alert('Server Error: ' + text.substring(0, 100));
             }
         } catch (error) {
-            alert('Failed to save profile');
+            console.error('Save profile error:', error);
+            alert('Failed to save profile: ' + (error instanceof Error ? error.message : String(error)));
         } finally {
             setSaving(false);
         }
